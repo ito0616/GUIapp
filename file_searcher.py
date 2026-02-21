@@ -1,20 +1,3 @@
-"""
-ファイル検索GUIアプリ
-PC内のファイルを条件で検索し、一覧表示するデスクトップアプリケーション。
-
-機能一覧:
-  - 部分一致 / 正規表現検索
-  - 拡張子フィルタ
-  - サブフォルダ再帰検索 ON/OFF
-  - 更新日フィルタ (今日 / 7日 / 30日 / 1年)
-  - 非同期検索 + リアルタイム追加 + キャンセル
-  - 結果テーブル (ソート / 交互色)
-  - ダブルクリック & 右クリックメニュー
-  - 検索履歴 (JSON 保存)
-  - ダークモード切替
-  - フォルダ ドラッグ&ドロップ
-"""
-
 import json
 import os
 import re
@@ -28,17 +11,12 @@ from tkinter import (
 )
 from tkinter import ttk
 
-# ドラッグ&ドロップ (windnd)
 try:
-    import windnd  # type: ignore
+    import windnd
     HAS_WINDND = True
 except ImportError:
     HAS_WINDND = False
 
-
-# =============================================================================
-# カラーパレット
-# =============================================================================
 LIGHT_THEME = {
     "name": "light",
     "BG": "#F7F5F2",
@@ -87,17 +65,10 @@ DARK_THEME = {
     "TOGGLE_BG": "#333346",
 }
 
-
-# =============================================================================
-# 設定ファイルパス (検索履歴)
-# =============================================================================
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), ".search_history.json")
 MAX_HISTORY = 20
 
-
 class FileSearchApp:
-    """ファイル検索GUIアプリケーションのメインクラス。"""
-
     POLL_INTERVAL_MS = 50
     FONT_FAMILY = "Meiryo UI"
 
@@ -107,11 +78,9 @@ class FileSearchApp:
         self.root.geometry("1020x720")
         self.root.minsize(780, 560)
 
-        # テーマ
         self._theme = LIGHT_THEME
-        self.C = self._theme  # ショートカット
+        self.C = self._theme
 
-        # 状態変数
         self.folder_var = StringVar()
         self.keyword_var = StringVar()
         self.ext_var = StringVar()
@@ -125,20 +94,14 @@ class FileSearchApp:
         self._sort_reverse: dict[str, bool] = {}
         self._row_count = 0
 
-        # 検索履歴
         self._history: list[str] = self._load_history()
 
-        # UI 構築
         self._apply_styles()
         self._build_ui()
         self._build_context_menu()
         self._setup_drag_and_drop()
 
-    # =========================================================================
-    # テーマ / スタイル
-    # =========================================================================
     def _apply_styles(self):
-        """ttk スタイルを現在のテーマで設定する。"""
         C = self.C
         style = ttk.Style()
         style.theme_use("clam")
@@ -173,7 +136,6 @@ class FileSearchApp:
             font=(self.FONT_FAMILY, 9),
         )
 
-        # ボタン
         style.configure(
             "Search.TButton", background=C["PRIMARY"],
             foreground=C["PRIMARY_TEXT"],
@@ -181,7 +143,7 @@ class FileSearchApp:
         )
         style.map("Search.TButton",
                   background=[("active", C["PRIMARY_HOVER"]),
-                              ("disabled", C["BORDER"])],
+                               ("disabled", C["BORDER"])],
                   foreground=[("disabled", C["TEXT_LIGHT"])])
 
         style.configure(
@@ -191,7 +153,7 @@ class FileSearchApp:
         )
         style.map("Cancel.TButton",
                   background=[("active", C["CANCEL_HOVER"]),
-                              ("disabled", C["BORDER"])],
+                               ("disabled", C["BORDER"])],
                   foreground=[("disabled", C["TEXT_LIGHT"])])
 
         style.configure(
@@ -210,7 +172,6 @@ class FileSearchApp:
         style.map("Toggle.TButton",
                   background=[("active", C["BORDER"])])
 
-        # エントリー / コンボボックス
         style.configure(
             "App.TEntry", fieldbackground=C["CARD_BG"],
             foreground=C["TEXT"], bordercolor=C["BORDER"],
@@ -232,7 +193,6 @@ class FileSearchApp:
                   lightcolor=[("focus", C["PRIMARY"])],
                   fieldbackground=[("readonly", C["CARD_BG"])])
 
-        # チェックボタン
         style.configure(
             "App.TCheckbutton", background=C["CARD_BG"],
             foreground=C["TEXT"], font=(self.FONT_FAMILY, 10),
@@ -240,14 +200,12 @@ class FileSearchApp:
         style.map("App.TCheckbutton",
                   background=[("active", C["CARD_BG"])])
 
-        # プログレスバー
         style.configure(
             "App.Horizontal.TProgressbar",
             troughcolor=C["BORDER"], background=C["PRIMARY"],
             borderwidth=0, thickness=6,
         )
 
-        # ラベルフレーム
         style.configure(
             "Card.TLabelframe", background=C["CARD_BG"],
             foreground=C["TEXT"], bordercolor=C["BORDER"],
@@ -258,7 +216,6 @@ class FileSearchApp:
             foreground=C["TEXT"], font=(self.FONT_FAMILY, 10, "bold"),
         )
 
-        # Treeview
         style.configure(
             "App.Treeview", background=C["CARD_BG"],
             foreground=C["TEXT"], fieldbackground=C["CARD_BG"],
@@ -276,20 +233,16 @@ class FileSearchApp:
                   foreground=[("selected", C["TEXT"])])
 
     def _refresh_theme(self):
-        """テーマ切替後に全スタイルと背景色を再適用する。"""
         self._apply_styles()
         C = self.C
 
-        # ルートと全 Frame の背景色を更新
         self.root.configure(bg=C["BG"])
         self._set_widget_bg(self.root, C)
 
-        # Treeview の交互色タグ再設定
         self.tree.tag_configure("odd", background=C["ROW_ODD"])
         self.tree.tag_configure("even", background=C["ROW_EVEN"])
         self._reapply_row_tags()
 
-        # ダークモードボタンのテキスト更新
         if C["name"] == "dark":
             self.btn_theme.config(text="☀️ ライト")
         else:
@@ -297,7 +250,6 @@ class FileSearchApp:
 
     @staticmethod
     def _set_widget_bg(widget, C):
-        """再帰的にウィジェットの背景色を更新する。"""
         try:
             wtype = widget.winfo_class()
             if wtype in ("Frame", "TFrame", "Labelframe", "TLabelframe"):
@@ -310,7 +262,6 @@ class FileSearchApp:
             FileSearchApp._set_widget_bg(child, C)
 
     def _toggle_theme(self):
-        """ライト / ダーク テーマを切り替える。"""
         if self._theme["name"] == "light":
             self._theme = DARK_THEME
         else:
@@ -318,15 +269,10 @@ class FileSearchApp:
         self.C = self._theme
         self._refresh_theme()
 
-    # =========================================================================
-    # UI 構築
-    # =========================================================================
     def _build_ui(self):
-        """全ウィジェットを配置する。"""
         C = self.C
         px = 16
 
-        # ── ヘッダー ──
         header = ttk.Frame(self.root, style="App.TFrame")
         header.pack(fill="x", padx=px, pady=(14, 4))
         ttk.Label(
@@ -337,21 +283,18 @@ class FileSearchApp:
             style="App.TLabel", foreground=C["TEXT_LIGHT"],
         ).pack(side="left", padx=(12, 0))
 
-        # テーマ切替ボタン
         self.btn_theme = ttk.Button(
             header, text="🌙 ダーク", style="Toggle.TButton",
             command=self._toggle_theme,
         )
         self.btn_theme.pack(side="right")
 
-        # ── 検索条件カード ──
         cond = ttk.LabelFrame(
             self.root, text=" 🔍 検索条件 ",
             style="Card.TLabelframe", padding=14,
         )
         cond.pack(fill="x", padx=px, pady=6)
 
-        # フォルダ
         r1 = ttk.Frame(cond, style="Card.TFrame")
         r1.pack(fill="x", pady=(0, 6))
         ttk.Label(r1, text="📁 フォルダ", style="Card.TLabel", width=14).pack(
@@ -366,7 +309,6 @@ class FileSearchApp:
             command=self._browse_folder,
         ).pack(side="left")
 
-        # ファイル名 (コンボボックスで履歴表示)
         r2 = ttk.Frame(cond, style="Card.TFrame")
         r2.pack(fill="x", pady=(0, 6))
         ttk.Label(r2, text="🔎 ファイル名", style="Card.TLabel", width=14).pack(
@@ -378,7 +320,6 @@ class FileSearchApp:
         )
         self.combo_keyword.pack(side="left", fill="x", expand=True)
 
-        # 拡張子
         r3 = ttk.Frame(cond, style="Card.TFrame")
         r3.pack(fill="x", pady=(0, 6))
         ttk.Label(r3, text="📄 拡張子", style="Card.TLabel", width=14).pack(
@@ -392,7 +333,6 @@ class FileSearchApp:
             side="left"
         )
 
-        # オプション行: 更新日フィルタ + サブフォルダ + 正規表現
         r4 = ttk.Frame(cond, style="Card.TFrame")
         r4.pack(fill="x", pady=(0, 2))
 
@@ -416,7 +356,6 @@ class FileSearchApp:
             variable=self.regex_var, style="App.TCheckbutton",
         ).pack(side="left")
 
-        # ── アクションバー ──
         ab = ttk.Frame(self.root, style="App.TFrame")
         ab.pack(fill="x", padx=px, pady=6)
 
@@ -441,7 +380,6 @@ class FileSearchApp:
         self.status_label = ttk.Label(ab, text="", style="App.TLabel")
         self.status_label.pack(side="left", padx=4)
 
-        # ── 結果ヘッダー ──
         th = ttk.Frame(self.root, style="App.TFrame")
         th.pack(fill="x", padx=px, pady=(6, 2))
         ttk.Label(
@@ -451,7 +389,6 @@ class FileSearchApp:
         self.count_label = ttk.Label(th, text="0 件", style="Count.TLabel")
         self.count_label.pack(side="left", padx=(8, 0))
 
-        # ── テーブル ──
         columns = ("name", "folder", "size", "modified")
         col_headings = {
             "name": "📄 ファイル名",
@@ -491,7 +428,6 @@ class FileSearchApp:
 
         self.tree.bind("<Double-1>", self._open_selected_file)
 
-        # ── フッター ──
         ft = ttk.Frame(self.root, style="App.TFrame")
         ft.pack(fill="x", padx=px, pady=(0, 8))
         dnd_hint = " ｜ フォルダをドラッグ&ドロップで指定可能" if HAS_WINDND else ""
@@ -501,11 +437,7 @@ class FileSearchApp:
             style="Count.TLabel",
         ).pack(side="left")
 
-    # =========================================================================
-    # 右クリックメニュー
-    # =========================================================================
     def _build_context_menu(self):
-        """右クリックコンテキストメニューを作成する。"""
         self.ctx_menu = Menu(self.root, tearoff=0)
         self.ctx_menu.add_command(
             label="📂 ファイルを開く", command=self._ctx_open_file
@@ -528,14 +460,12 @@ class FileSearchApp:
         self.tree.bind("<Button-3>", self._show_context_menu)
 
     def _show_context_menu(self, event):
-        """右クリック位置の行を選択してメニューを表示する。"""
         iid = self.tree.identify_row(event.y)
         if iid:
             self.tree.selection_set(iid)
             self.ctx_menu.post(event.x_root, event.y_root)
 
     def _get_selected_path(self) -> str | None:
-        """選択行のフルパスを返す。"""
         sel = self.tree.selection()
         if not sel:
             return None
@@ -586,32 +516,22 @@ class FileSearchApp:
             except OSError as e:
                 messagebox.showerror("エラー", str(e))
 
-    # =========================================================================
-    # ドラッグ&ドロップ
-    # =========================================================================
     def _setup_drag_and_drop(self):
-        """ウィンドウへのフォルダ D&D を設定する。"""
         if not HAS_WINDND:
             return
         windnd.hook_dropfiles(self.root, func=self._on_drop)
 
     def _on_drop(self, files):
-        """ドロップされたパスをフォルダ欄にセットする。"""
         if not files:
             return
         path = files[0]
-        # windnd は bytes を返す場合がある
         if isinstance(path, bytes):
             path = path.decode("utf-8", errors="replace")
         if os.path.isdir(path):
             self.folder_var.set(path)
         elif os.path.isfile(path):
-            # ファイルをドロップ → 親フォルダをセット
             self.folder_var.set(os.path.dirname(path))
 
-    # =========================================================================
-    # 検索履歴
-    # =========================================================================
     @staticmethod
     def _load_history() -> list[str]:
         try:
@@ -637,9 +557,6 @@ class FileSearchApp:
         except OSError:
             pass
 
-    # =========================================================================
-    # アクション
-    # =========================================================================
     def _browse_folder(self):
         path = filedialog.askdirectory(title="検索するフォルダを選択")
         if path:
@@ -660,7 +577,6 @@ class FileSearchApp:
             )
             return
 
-        # 正規表現チェック
         if self.regex_var.get() and keyword:
             try:
                 re.compile(keyword)
@@ -668,7 +584,6 @@ class FileSearchApp:
                 messagebox.showerror("正規表現エラー", f"無効な正規表現です:\n{e}")
                 return
 
-        # 拡張子リスト
         ext_text = self.ext_var.get().strip()
         extensions: list[str] = []
         if ext_text:
@@ -678,13 +593,10 @@ class FileSearchApp:
                 for e in ext_text.split(",") if e.strip()
             ]
 
-        # 更新日フィルタ → 基準日時
         min_mtime = self._calc_min_mtime()
 
-        # 履歴保存
         self._save_history(keyword)
 
-        # 状態リセット
         self._clear_results()
         self._cancel_event.clear()
         self._set_searching(True)
@@ -709,11 +621,7 @@ class FileSearchApp:
             except OSError as e:
                 messagebox.showerror("エラー", str(e))
 
-    # =========================================================================
-    # 更新日フィルタ
-    # =========================================================================
     def _calc_min_mtime(self) -> float | None:
-        """更新日フィルタに対応する最小タイムスタンプを返す。"""
         choice = self.date_filter_var.get()
         now = datetime.datetime.now()
         if choice == "今日":
@@ -725,11 +633,8 @@ class FileSearchApp:
             return (now - datetime.timedelta(days=30)).timestamp()
         elif choice == "過去1年":
             return (now - datetime.timedelta(days=365)).timestamp()
-        return None  # "すべて"
+        return None
 
-    # =========================================================================
-    # ソート
-    # =========================================================================
     def _sort_by_column(self, col: str):
         reverse = self._sort_reverse.get(col, False)
         self._sort_reverse[col] = not reverse
@@ -758,9 +663,6 @@ class FileSearchApp:
                     return 0
         return 0
 
-    # =========================================================================
-    # 検索ワーカー
-    # =========================================================================
     def _search_worker(
         self, folder: str, keyword: str, use_regex: bool,
         extensions: list[str], recurse: bool, min_mtime: float | None,
@@ -773,7 +675,6 @@ class FileSearchApp:
             if recurse:
                 walker = os.walk(folder)
             else:
-                # サブフォルダなし: 直下のみ
                 try:
                     entries = os.listdir(folder)
                 except PermissionError:
@@ -792,13 +693,11 @@ class FileSearchApp:
                         self._result_queue.put(("__CANCELLED__",))
                         return
 
-                    # 拡張子フィルタ
                     if extensions:
                         _, ext = os.path.splitext(fname)
                         if ext.lower() not in extensions:
                             continue
 
-                    # 名前マッチ
                     if keyword:
                         if pattern:
                             if not pattern.search(fname):
@@ -813,7 +712,6 @@ class FileSearchApp:
                     except OSError:
                         continue
 
-                    # 更新日フィルタ
                     if min_mtime is not None and stat.st_mtime < min_mtime:
                         continue
 
@@ -839,9 +737,6 @@ class FileSearchApp:
         else:
             return f"{n/1024**3:.2f} GB"
 
-    # =========================================================================
-    # ポーリング
-    # =========================================================================
     def _poll_results(self):
         while True:
             try:
@@ -877,9 +772,6 @@ class FileSearchApp:
         self.count_label.config(text=f"{total} 件")
         self.root.after(self.POLL_INTERVAL_MS, self._poll_results)
 
-    # =========================================================================
-    # ユーティリティ
-    # =========================================================================
     def _clear_results(self):
         for iid in self.tree.get_children(""):
             self.tree.delete(iid)
@@ -904,15 +796,10 @@ class FileSearchApp:
         for idx, iid in enumerate(self.tree.get_children("")):
             self.tree.item(iid, tags=("even" if idx % 2 == 0 else "odd",))
 
-
-# =============================================================================
-# エントリーポイント
-# =============================================================================
 def main():
     root = Tk()
     FileSearchApp(root)
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()
