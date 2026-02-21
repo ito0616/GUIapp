@@ -58,6 +58,16 @@ Windowsエクスプローラーの検索機能を自作したイメージで、�
 
 --
 
+## サンプル画像
+
+![sample_image](https://ito0616.github.io/syasin/file-app-sample1.png)
+
+![sample_image](https://ito0616.github.io/syasin/file-app-sample2.png)
+
+![sample_image](https://ito0616.github.io/syasin/file-app-sample3.png)
+
+![sample_image](https://ito0616.github.io/syasin/file-app-sample4.png)
+
 ## ライセンス
 
 MIT License
